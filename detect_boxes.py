@@ -9,7 +9,6 @@ def detect_columns(img):
     h, w = img.shape[:2]
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-
     vertical_projection = np.sum(binary, axis=0)
     vertical_projection_norm = vertical_projection / np.max(vertical_projection) if np.max(vertical_projection) > 0 else vertical_projection
 
@@ -113,8 +112,12 @@ def save_json(image_path, output_json_path='output.json'):
     boxes = auto_detect_boxes(image_path)
     with open(output_json_path, 'w') as f:
         json.dump(boxes, f, indent=2)
+    print(f"Saved {len(boxes)} boxes to {output_json_path}")
 
 if __name__ == "__main__":
     IMAGE_FILE = "input.jpg"
     OUTPUT_FILE = "output.json"
+    if not os.path.exists(IMAGE_FILE):
+        print(f"Error: input image '{IMAGE_FILE}' not found", file=sys.stderr)
+        sys.exit(1)
     save_json(IMAGE_FILE, OUTPUT_FILE)

@@ -23,10 +23,13 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Download input image (if workflow_dispatch input is provided)
+      - name: Download input image (if provided)
         if: ${{ github.event.inputs.image_url != '' }}
         run: |
           curl -L -o input.jpg "${{ github.event.inputs.image_url }}"
+
+      - name: Verify input image exists
+        run: ls -l input.jpg
 
       - name: Install dependencies
         run: pip install -r requirements.txt
