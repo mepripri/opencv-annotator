@@ -109,9 +109,5 @@ def auto_detect_boxes(image_path):
 
 if __name__ == "__main__":
     IMAGE_FILE = "input.jpg"
-    if not os.path.exists(IMAGE_FILE):
-        print(f"Error: input image '{IMAGE_FILE}' not found", file=sys.stderr)
-        sys.exit(1)
-    
     boxes = auto_detect_boxes(IMAGE_FILE)
-    print(json.dumps(boxes, indent=2))
+    print(json.dumps(boxes))
