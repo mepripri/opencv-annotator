@@ -34,11 +34,5 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run detection script
+      - name: Run detection script and output JSON
         run: python detect_boxes.py
-
-      - name: Upload output JSON
-        uses: actions/upload-artifact@v4
-        with:
-          name: detected-boxes-json
-          path: output.json

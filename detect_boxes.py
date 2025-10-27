@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import cv2
 import json
 import numpy as np
@@ -108,16 +107,11 @@ def auto_detect_boxes(image_path):
             })
     return results
 
-def save_json(image_path, output_json_path='output.json'):
-    boxes = auto_detect_boxes(image_path)
-    with open(output_json_path, 'w') as f:
-        json.dump(boxes, f, indent=2)
-    print(f"Saved {len(boxes)} boxes to {output_json_path}")
-
 if __name__ == "__main__":
     IMAGE_FILE = "input.jpg"
-    OUTPUT_FILE = "output.json"
     if not os.path.exists(IMAGE_FILE):
         print(f"Error: input image '{IMAGE_FILE}' not found", file=sys.stderr)
         sys.exit(1)
-    save_json(IMAGE_FILE, OUTPUT_FILE)
+    
+    boxes = auto_detect_boxes(IMAGE_FILE)
+    print(json.dumps(boxes, indent=2))
