@@ -34,4 +34,4 @@ jobs:
           curl -X POST \
             -H "Content-Type: application/json" \
             -d "$JSON_OUTPUT" \
-            "https://api.github.com/repos/mepripri/opencv-annotator/actions/workflows/main.yml/dispatches"
+            "https://priyalpatel.app.n8n.cloud/webhook-test/extract-annotations"
