@@ -1,8 +1,6 @@
 name: Run OpenCV Annotation
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
     inputs:
       image_url:
@@ -13,26 +11,19 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-
-      - name: Download input image (if provided)
+      - name: Download input image
         if: ${{ github.event.inputs.image_url != '' }}
-        run: |
-          curl -L -o input.jpg "${{ github.event.inputs.image_url }}"
-
-      - name: Verify input image exists
-        run: ls -l input.jpg
-
+        run: curl -L -o input.jpg "${{ github.event.inputs.image_url }}"
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run detection script and output JSON
-        run: python detect_boxes.py
+      - id: detect   # <--- Important: give the step an ID
+        name: Run detection script
+        run: |
+          OUTPUT=$(python detect_boxes.py)
+          echo "json_output=$OUTPUT" >> $GITHUB_OUTPUT
