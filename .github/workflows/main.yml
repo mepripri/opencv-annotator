@@ -21,10 +21,9 @@ jobs:
         run: curl -L -o input.jpg "${{ github.event.inputs.image_url }}"
       - name: Install dependencies
         run: pip install -r requirements.txt
-
-      - id: detect   # <--- Important: give the step an ID
-        name: Run detection script
+      - name: Run detection script and output JSON
+        id: detect
         run: |
           OUTPUT=$(python detect_boxes.py)
           echo "json_output=$OUTPUT" >> $GITHUB_OUTPUT
-        shell: /usr/bin/bash
+        shell: bash
