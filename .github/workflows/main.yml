@@ -26,4 +26,6 @@ jobs:
         name: Run detection script
         run: |
           OUTPUT=$(python detect_boxes.py)
-          echo "json_output=$OUTPUT" >> $GITHUB_OUTPUT
+          echo "json_output<<EOF" >> $GITHUB_OUTPUT
+          echo "$OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
