@@ -34,4 +34,4 @@ jobs:
           curl -X POST \
             -H "Content-Type: application/json" \
             -d "$JSON_OUTPUT" \
-            "https://priyalpatel.app.n8n.cloud/webhook/extract-annotations"
+            "https://priyalpatel.app.n8n.cloud/webhook-test/extract-annotations"
