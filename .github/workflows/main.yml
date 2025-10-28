@@ -1,6 +1,8 @@
 name: Run OpenCV Annotation
 
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
     inputs:
       image_url:
@@ -11,19 +13,36 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - name: Download input image
+
+      - name: Download input image (if provided)
         if: ${{ github.event.inputs.image_url != '' }}
-        run: curl -L -o input.jpg "${{ github.event.inputs.image_url }}"
+        run: |
+          curl -L -o input.jpg "${{ github.event.inputs.image_url }}"
+
+      - name: Verify input image exists
+        run: ls -l input.jpg
+
       - name: Install dependencies
         run: pip install -r requirements.txt
+
       - name: Run detection script and output JSON
-        id: detect
+        id: run_detection
         run: |
-          OUTPUT=$(python detect_boxes.py)
-          echo "json_output=$OUTPUT" >> $GITHUB_OUTPUT
-        shell: bash
+          python detect_boxes.py > output.json
+
+      - name: Send JSON result to n8n
+        if: success()
+        run: |
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -d "@output.json" \
+            "https://n8n.yourdomain.com/webhook/run-opencv"
