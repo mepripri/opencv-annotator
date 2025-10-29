@@ -7,12 +7,6 @@ on:
         description: 'URL of input image to process'
         required: true
 
-# Workflow-level outputs (for n8n)
-outputs:
-  json_output:
-    description: "Detected boxes JSON from OpenCV"
-    value: ${{ jobs.build.outputs.json_output }}
-
 jobs:
   build:
     runs-on: ubuntu-latest
