@@ -10,6 +10,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      json_output: ${{ steps.detect.outputs.json_output }}
 
     steps:
       - name: Checkout code
@@ -27,11 +29,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run detection and send JSON directly to n8n
+      - name: Run detection and capture JSON
+        id: detect
         run: |
           JSON_OUTPUT=$(python detect_boxes.py | jq -c .)
-          echo "Sending to n8n..."
-          curl -X POST \
-            -H "Content-Type: application/json" \
-            -d "$JSON_OUTPUT" \
-            "https://priyalpatel.app.n8n.cloud/webhook-test/extract-annotations"
+          echo "$JSON_OUTPUT"
+          echo "json_output=$JSON_OUTPUT" >> $GITHUB_OUTPUT
