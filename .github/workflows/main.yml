@@ -6,6 +6,9 @@ on:
       image_url:
         description: 'URL of input image to process'
         required: true
+      resumeUrl:
+        description: 'Optional resume URL for n8n callback'
+        required: false
 
 jobs:
   build:
