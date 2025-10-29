@@ -7,14 +7,12 @@ on:
         description: 'URL of input image to process'
         required: true
       resumeUrl:
-        description: 'Optional resume URL for n8n callback'
+        description: 'Optional callback URL from n8n'
         required: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    outputs:
-      json_output: ${{ steps.detect.outputs.json_output }}
 
     steps:
       - name: Checkout code
@@ -32,9 +30,22 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run detection and capture JSON
+      - name: Run detection
         id: detect
         run: |
+          echo "Running detect_boxes.py..."
           JSON_OUTPUT=$(python detect_boxes.py | jq -c .)
+          echo "JSON output:"
           echo "$JSON_OUTPUT"
+
+          # Save JSON for GitHub Actions outputs
           echo "json_output=$JSON_OUTPUT" >> $GITHUB_OUTPUT
+
+          # If resumeUrl is provided (from n8n), POST results back
+          if [ -n "${{ github.event.inputs.resumeUrl }}" ]; then
+            echo "Sending results back to n8n..."
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -d "$JSON_OUTPUT" \
+              "${{ github.event.inputs.resumeUrl }}"
+          fi
