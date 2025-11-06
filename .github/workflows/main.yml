@@ -30,10 +30,7 @@ jobs:
       - name: Run detection
         id: detect
         run: |
-          echo "Running detect_boxes.py..."
           JSON_OUTPUT=$(python detect_boxes.py | jq -c .)
-          echo "JSON output:"
-          echo "$JSON_OUTPUT"
-
-          # Save JSON for GitHub Actions outputs
-          echo "json_output=$JSON_OUTPUT" >> $GITHUB_OUTPUT
+          curl -X POST http://localhost:3012/project/${{ github.event.inputs.project_id }}/page/${{ github.event.inputs.page_id }}/receive-json \
+            -H "Content-Type: application/json" \
+            -d "$JSON_OUTPUT"
