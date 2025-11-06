@@ -6,9 +6,6 @@ on:
       image_url:
         description: 'URL of input image to process'
         required: true
-      resumeUrl:
-        description: 'Optional callback URL from n8n'
-        required: false
 
 jobs:
   build:
@@ -40,12 +37,3 @@ jobs:
 
           # Save JSON for GitHub Actions outputs
           echo "json_output=$JSON_OUTPUT" >> $GITHUB_OUTPUT
-
-          # If resumeUrl is provided (from n8n), POST results back
-          if [ -n "${{ github.event.inputs.resumeUrl }}" ]; then
-            echo "Sending results back to n8n..."
-            curl -X POST \
-              -H "Content-Type: application/json" \
-              -d "$JSON_OUTPUT" \
-              "${{ github.event.inputs.resumeUrl }}"
-          fi
