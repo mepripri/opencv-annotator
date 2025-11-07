@@ -6,6 +6,12 @@ on:
       image_url:
         description: 'URL of input image to process'
         required: true
+      project_id:
+        description: 'Project ID'
+        required: true
+      page_id:
+        description: 'Page ID'
+        required: true
 
 jobs:
   build:
