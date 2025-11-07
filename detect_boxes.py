@@ -4,110 +4,144 @@ import numpy as np
 import sys
 import os
 
-def detect_columns(img):
-    h, w = img.shape[:2]
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    vertical_projection = np.sum(binary, axis=0)
-    vertical_projection_norm = vertical_projection / np.max(vertical_projection) if np.max(vertical_projection) > 0 else vertical_projection
+def remove_outlier_lines(lines, tolerance_ratio=1.5):
+    if len(lines) <= 2:
+        return lines
+    spacings = [lines[i+1][0] - lines[i][0] for i in range(len(lines)-1)]
+    avg_spacing = np.median(spacings)
+    valid_indices = set()
+    for i, spacing in enumerate(spacings):
+        if 0.5 * avg_spacing <= spacing <= tolerance_ratio * avg_spacing:
+            valid_indices.add(i)
+            valid_indices.add(i+1)
+    return [lines[i] for i in range(len(lines)) if i in valid_indices]
 
-    window_size = max(10, w // 100)
-    kernel = np.ones(window_size) / window_size
-    smoothed = np.convolve(vertical_projection_norm, kernel, mode='same')
+def detect_columns(binary, min_column_width=50, space_threshold=0.1):
+    vertical_proj = np.sum(binary == 255, axis=0)
+    threshold = np.max(vertical_proj) * space_threshold
+    spaces = vertical_proj < threshold
 
-    local_minima = [i for i in range(1, len(smoothed)-1) if smoothed[i] < smoothed[i-1] and smoothed[i] < smoothed[i+1]]
+    columns = []
+    in_col = False
+    for i, is_space in enumerate(spaces):
+        if not is_space and not in_col:
+            start = i
+            in_col = True
+        elif is_space and in_col:
+            end = i
+            if end - start >= min_column_width:
+                columns.append((start, end))
+            in_col = False
+    if in_col:
+        end = len(spaces)
+        if end - start >= min_column_width:
+            columns.append((start, end))
 
-    margin = w // 20
-    filtered_separators = []
-    for x in local_minima:
-        if x < margin or x > w - margin:
-            continue
-        left_region = smoothed[max(0, x-window_size):x]
-        right_region = smoothed[x:min(len(smoothed), x+window_size)]
-        if len(left_region) > 0 and len(right_region) > 0:
-            left_max = np.max(left_region)
-            right_max = np.max(right_region)
-            if smoothed[x] < 0.7*left_max and smoothed[x] < 0.7*right_max:
-                filtered_separators.append(x)
+    if len(columns) > 1:
+        merged = []
+        cur_start, cur_end = columns[0]
+        for s, e in columns[1:]:
+            if s - cur_end < 3:
+                cur_end = e
+            else:
+                merged.append((cur_start, cur_end))
+                cur_start, cur_end = s, e
+        merged.append((cur_start, cur_end))
+        columns = merged
 
-    min_distance = w // 10
-    column_separators = []
-    for x in filtered_separators:
-        if not column_separators or x - column_separators[-1] >= min_distance:
-            column_separators.append(x)
+    total_width = sum([e - s for s, e in columns])
+    if len(columns) == 0 or total_width > 0.85 * binary.shape[1]:
+        columns = [(0, binary.shape[1])]
 
-    boundaries = [0] + column_separators + [w]
-    columns = [(boundaries[i], boundaries[i+1]) for i in range(len(boundaries)-1)]
     return columns
 
-def get_text_bounding_box(region_img):
-    gray = cv2.cvtColor(region_img, cv2.COLOR_BGR2GRAY) if len(region_img.shape) == 3 else region_img
-    _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    coords = cv2.findNonZero(binary)
-    if coords is None or len(coords) == 0:
-        return None
-    x, y, w, h = cv2.boundingRect(coords)
-    return (x, y, x + w, y + h)
+def detect_lines_in_column(binary, col_range, min_space_height=5, min_white_pixels=5):
+    x_start, x_end = col_range
+    col_crop = binary[:, x_start:x_end]
 
-def detect_text_lines_in_column(column_img, min_text_density=0.02):
-    h, w = column_img.shape[:2]
-    gray = cv2.cvtColor(column_img, cv2.COLOR_BGR2GRAY) if len(column_img.shape) == 3 else column_img
-    _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    horizontal_projection = np.sum(binary, axis=1)
-    h_window = max(3, h // 150)
-    h_smoothed = np.convolve(horizontal_projection, np.ones(h_window)/h_window, mode='same')
-    h_norm = h_smoothed / np.max(h_smoothed) if np.max(h_smoothed) > 0 else h_smoothed
+    horizontal_proj = np.sum(col_crop == 255, axis=1)
+    threshold = np.max(horizontal_proj) * 0.15
+    spaces = horizontal_proj < threshold
 
-    threshold = 0.15
-    text_regions = h_norm > threshold
-    transitions = np.diff(text_regions.astype(int))
-    line_starts = np.where(transitions == 1)[0]
-    line_ends = np.where(transitions == -1)[0]
-    if text_regions[0]: line_starts = np.concatenate([[0], line_starts])
-    if text_regions[-1]: line_ends = np.concatenate([line_ends, [h-1]])
-
-    min_line_height = h // 150
-    max_line_height = h // 10
     lines = []
+    in_line = False
+    for y, is_space in enumerate(spaces):
+        if not is_space and not in_line:
+            start_y = y
+            in_line = True
+        elif is_space and in_line:
+            end_y = y
+            if end_y - start_y > min_space_height and np.sum(col_crop[start_y:end_y, :] == 255) >= min_white_pixels:
+                lines.append((start_y, end_y))
+            in_line = False
 
-    for start, end in zip(line_starts, line_ends[:len(line_starts)]):
-        line_height = end - start
-        if line_height < min_line_height or line_height > max_line_height:
-            continue
-        y_start = max(0, start-2)
-        y_end = min(h, end+2)
-        line_region = column_img[y_start:y_end, :]
-        bbox = get_text_bounding_box(line_region)
-        if bbox is None: continue
-        x_min, _, x_max, _ = bbox
-        line_binary = cv2.threshold(cv2.cvtColor(line_region, cv2.COLOR_BGR2GRAY) if len(line_region.shape) == 3 else line_region,
-                                    0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
-        density = np.sum(line_binary>0)/line_binary.size if line_binary.size>0 else 0
-        if density < min_text_density: continue
-        lines.append((y_start, y_end, x_min, x_max))
+    if in_line:
+        end_y = col_crop.shape[0]
+        if end_y - start_y > min_space_height and np.sum(col_crop[start_y:end_y, :] == 255) >= min_white_pixels:
+            lines.append((start_y, end_y))
+
+    lines = remove_outlier_lines(lines)
     return lines
 
-def auto_detect_boxes(image_path):
-    img = cv2.imread(image_path)
-    if img is None:
-        print(f"Error: Could not read image at {image_path}", file=sys.stderr)
-        return []
-    columns = detect_columns(img)
-    results = []
+def detect_text_lines_combined(image_path, visualize=True, expand_y=True):
+    image = cv2.imread(image_path)
+    if image is None:
+        print(f"❌ Cannot read {image_path}", file=sys.stderr)
+        return [], None
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (3,3),0)
+    binary = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 55, 35)
+
+    h, w = binary.shape
+    binary[:int(0.05*h), :] = 0
+    binary[int(0.95*h):, :] = 0
+
+    columns = detect_columns(binary)
+    boxes = []
+
     for x_start, x_end in columns:
-        column_img = img[:, x_start:x_end]
-        lines = detect_text_lines_in_column(column_img)
-        for y_start, y_end, x_min, x_max in lines:
-            results.append({
-                "text": "",
-                "x": int(x_start + x_min),
-                "y": int(y_start),
-                "w": int(x_max - x_min),
-                "h": int(y_end - y_start)
+        lines = detect_lines_in_column(binary, (x_start, x_end))
+        for i, (start, end) in enumerate(lines):
+            line_img = binary[start:end, x_start:x_end]
+
+            kernel = np.ones((1,3), np.uint8)
+            line_img_closed = cv2.morphologyEx(line_img, cv2.MORPH_CLOSE, kernel)
+
+            col_sum = np.sum(line_img_closed, axis=0)
+            sig_cols = np.where(col_sum > 0.05*np.max(col_sum))[0]
+            if len(sig_cols) == 0:
+                continue
+            x1 = x_start + sig_cols[0]
+            x2 = x_start + sig_cols[-1]
+
+            pad = 2
+            x1 = max(0, x1-pad)
+            x2 = min(w-1, x2+pad)
+
+            if expand_y:
+                next_start = lines[i+1][0] if i+1 < len(lines) else end
+                mid = (next_start - end)//2
+                y1 = max(0, start - mid)
+                y2 = min(h, end + mid)
+            else:
+                y1, y2 = start, end
+
+            if i == len(lines) - 1:
+                prev_end = lines[i-1][1] if i-1 >= 0 else start
+                mid = (start - prev_end)//2
+                y1 = max(0, start - mid)
+                y2 = min(h, end + mid)
+
+            boxes.append({
+                "x": int(x1),
+                "y": int(y1),
+                "w": int(x2 - x1),
+                "h": int(y2 - y1)
             })
-    return results
+    return boxes
 
 if __name__ == "__main__":
     IMAGE_FILE = "input.jpg"
-    boxes = auto_detect_boxes(IMAGE_FILE)
+    boxes = detect_text_lines_combined(IMAGE_FILE, visualize=True)
     print(json.dumps(boxes))
