@@ -102,11 +102,25 @@ def detect_text_lines_combined(image_path, visualize=True, expand_y=True):
 
     for x_start, x_end in columns:
         lines = detect_lines_in_column(binary, (x_start, x_end))
-        
-        col_x1 = x_start
-        col_x2 = x_end
+        line_boxes = []
 
         for i, (start, end) in enumerate(lines):
+            line_img = binary[start:end, x_start:x_end]
+
+            kernel = np.ones((1,3), np.uint8)
+            line_img_closed = cv2.morphologyEx(line_img, cv2.MORPH_CLOSE, kernel)
+
+            col_sum = np.sum(line_img_closed, axis=0)
+            sig_cols = np.where(col_sum > 0.05*np.max(col_sum))[0]
+            if len(sig_cols) == 0:
+                continue
+            x1 = x_start + sig_cols[0]
+            x2 = x_start + sig_cols[-1]
+
+            pad = 2
+            x1 = max(0, x1-pad)
+            x2 = min(w-1, x2+pad)
+
             if expand_y:
                 next_start = lines[i+1][0] if i+1 < len(lines) else end
                 mid = (next_start - end)//2
@@ -121,12 +135,21 @@ def detect_text_lines_combined(image_path, visualize=True, expand_y=True):
                 y1 = max(0, start - mid)
                 y2 = min(h, end + mid)
 
-            boxes.append({
-                "x": int(col_x1),
+            line_boxes.append({
+                "x": int(x1),
                 "y": int(y1),
-                "w": int(col_x2 - col_x1),
+                "w": int(x2 - x1),
                 "h": int(y2 - y1)
             })
+
+        if line_boxes:
+            min_x1 = min([b["x"] for b in line_boxes])
+            max_x2 = max([b["x"] + b["w"] for b in line_boxes])
+            for b in line_boxes:
+                b["x"] = min_x1
+                b["w"] = max_x2 - min_x1
+
+            boxes.extend(line_boxes)
 
     return boxes
 
