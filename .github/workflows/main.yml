@@ -6,12 +6,6 @@ on:
       image_url:
         description: 'URL of input image to process'
         required: true
-      project_id:
-        description: 'Project ID'
-        required: true
-      page_id:
-        description: 'Page ID'
-        required: true
 
 jobs:
   build:
@@ -37,6 +31,11 @@ jobs:
         id: detect
         run: |
           JSON_OUTPUT=$(python detect_boxes.py | jq -c .)
-          curl -X POST http://localhost:3012/project/${{ github.event.inputs.project_id }}/page/${{ github.event.inputs.page_id }}/receive-json \
-            -H "Content-Type: application/json" \
-            -d "$JSON_OUTPUT"
+          echo "$JSON_OUTPUT" > output.json
+
+      - name: Upload JSON artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: detection-json
+          path: output.json
+
